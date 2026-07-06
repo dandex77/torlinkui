@@ -9,21 +9,25 @@ import SettingsView from './components/SettingsView';
 import HistoryView from './components/HistoryView';
 import DownloadsView from './components/DownloadsView';
 import Terminal from './components/Terminal';
+import Sidebar from './components/Sidebar';
 
 function App() {
   const [state, setState] = useState<State | null>(null);
-  const [view, setView] = useState<View>('downloads');
-  const [isTerminalMode, setIsTerminalMode] = useState(false);
-  const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<Category>('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
-  const ws = useRef<WebSocket | null>(null);
-  const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3000';
-
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [view, setView] = useState<View>('downloads');
+    const [isTerminalMode, setIsTerminalMode] = useState(false);
+    const [query, setQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<Category>('all');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+   
+   const ws = useRef<WebSocket | null>(null);
+   const wsUrl = import.meta.env.VITE_WS_URL || (() => {
+     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+     return `${protocol}//${window.location.host}`;
+   })();
+   
+   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   // Fetch initial state
@@ -73,6 +77,9 @@ function App() {
     if (e) e.preventDefault();
     const q = query.trim();
     if (!q) return;
+
+    // Scroll to top on search
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     const categoryToUse = categoryOverride ?? selectedCategory;
 
@@ -188,7 +195,6 @@ function App() {
         <SearchView 
           isSearching={isSearching}
           searchResults={searchResults}
-          setView={setView}
           handleDownload={handleDownload}
           selectedCategory={selectedCategory}
           onCategoryChange={handleCategoryChange}
@@ -225,34 +231,16 @@ function App() {
 
   return (
     <div className="app-container">
-      <aside className={`app-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="sidebar-header">
-          <button className="toggle-sidebar" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? '❮' : '❯'}
-          </button>
-        </div >
-        <nav className="app-nav sidebar-nav">
-          <button className={view === 'downloads' ? 'active' : ''} onClick={() => setView('downloads')}>
-            <span className="nav-text">Downloads</span>
-          </button>
-          <button className={view === 'seeding' ? 'active' : ''} onClick={() => setView('seeding')}>
-            <span className="nav-text">Seeding</span>
-          </button>
-          <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>
-            <span className="nav-text">History</span>
-          </button>
-          <button className={view === 'search' ? 'active' : ''} onClick={() => setView('search')}>
-            <span className="nav-text">Search</span>
-          </button>
-          <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-            <span className="nav-text">Settings</span>
-          </button>
-        </nav>
-      </aside>
+      <Sidebar 
+        isSidebarOpen={isSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen} 
+        view={view} 
+        setView={setView} 
+      />
 
       <div className="app-content">
         <header className="app-header">
-          <div className="brand">torlink</div >
+          <div className="brand">Torlink UI</div >
           <button 
             className={`mode-toggle ${isTerminalMode ? 'terminal' : 'mobile'}`}
             onClick={() => setIsTerminalMode(!isTerminalMode)}

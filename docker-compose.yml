@@ -5,5 +5,10 @@ services:
     build: .
     image: torlink-web
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      - PORT=${PORT:-3000}
+      - DOWNLOAD_DIR=${DOWNLOAD_DIR:-~/torlink}
+    volumes:
+      - ${DOWNLOAD_DIR:-~/torlink}:/root/Downloads/torlink
     restart: always

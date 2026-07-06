@@ -4,51 +4,18 @@ You are an AI agent tasked with implementing the containerization of the `torlin
 
 ## File management
 
-Important: 
-1. No file should have more than 200 lines in it. If it exceeds find a way to modularize.
+**STRICT MANDATORY RULE**: 
+1. **No file shall exceed 200 lines.** This is a hard constraint. If a file approaches or exceeds this limit, you MUST modularize it by breaking it down into smaller, logical files (e.g., separating styles, components, or utility functions). This rule must never be bypassed.
 2. All files must have a comment with a summary of the file at the beginning.
+
+## MCP Servers
+
+**STRICT MANDATORY RULE**: Always use an MCP server if available.
 
 ## Considerations
 
 use torlink/ folder only as reference.
 
-## Project Specification
-
-**Objective**: Wrap the `torlink` terminal application into a Docker container that exposes a web-based interface using `ttyd`.
-
-### Technical Stack
-- **Application**: `torlink` (Node.js, React, Ink)
-- **Containerization**: Docker
-- **Terminal-to-Web Bridge**: `ttyd` (exposes TTY over HTTP/WebSockets)
-- **Orchestration**: Docker Compose
-
-### Implementation Roadmap
-
-#### Phase 1: Containerization
-- Create a `Dockerfile` using `node:22-slim`.
-- Install `ttyd` and necessary build tools.
-- Copy source, install dependencies, and run `npm run build`.
-- Set the `CMD` to run `ttyd -W -p 7681 node dist/cli.cjs`.
-
-#### Phase 2: Terminal-to-Web Integration
-- Ensure `ttyd` is configured to allow write access (`-W`) for user interaction.
-- Ensure the container exposes port `7681`.
-
-#### Phase 3: Orchestration
-- Create a `docker-compose.yml` to manage the `torlink-web` service.
-
-## Agent Guidelines
-
-### 1. Use of MCP Servers
-You are highly encouraged to use available MCP (Model Context Protocol) servers to assist in this project:
-- **Filesystem MCP**: Use for precise file manipulation, directory listing, and verifying file contents.
-- **Context7 MCP**: If you encounter unfamiliar libraries or need to verify the behavior of `ink` or `webtorrent`, use `resolve-library-id` and `query-docs` to fetch accurate documentation.
-- **Other MCPs**: Utilize any other available tools to enhance your research and implementation capabilities.
-
-### 2. Development Workflow
-- **Verify after every change**: After creating or modifying files (like `Dockerfile` or `docker-compose.yml`), verify their syntax or existence.
-- **Incremental progress**: Implement the plan phase by phase. Do not attempt to build the entire orchestration layer before the `Dockerfile` is verified.
-- **Clean Environment**: Ensure the `Dockerfile` is optimized (e.g., cleaning up `apt` caches) to keep the image small.
 
 ### 3. Coding Standards
 - Follow the existing project structure.

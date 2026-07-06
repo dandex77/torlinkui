@@ -42,8 +42,16 @@ RUN npm install
 # Copy server source code
 COPY server/ .
 
+# Default environment variables
+ENV PORT=3000
+ENV DOWNLOAD_DIR=/app/downloads
+
 # Expose the port used by the controller server
 EXPOSE 3000
 
+# Create the download directory
+RUN mkdir -p $DOWNLOAD_DIR
+
 # Run the controller server
-CMD ["npx", "tsx", "index.js"]
+# Using shell form to allow environment variable expansion
+CMD npx tsx index.js

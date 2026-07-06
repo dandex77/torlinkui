@@ -38,44 +38,85 @@ The container will run a process that combines the `ttyd` server and the `torlin
 ## 5. Detailed Implementation Instructions for Agents
 
 ### Step 1: Create the `Dockerfile`
-Create a `Dockerfile` in the root directory with the following logic:
+Create a `Dockerfile` in the root directory. It uses environment variables to allow configuration of the port and the download directory.
+
 ```dockerfile
 FROM node:22-slim
 
-# Install ttyd and essential build tools
+# Install build dependencies for native modules (like node-pty)
 RUN apt-get update && apt-get install -y \
-    ttyd \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY torlink/package*.json ./
+# --- Phase 1: Build torlink ---
+# Copy torlink package files
+COPY torlink/package*.json ./torlink/
+WORKDIR /app/torlink
+# Install dependencies and build
 RUN npm install
-
-# Copy the rest of the application
-COPY torlink/ .
-
-# Build the application
+# Copy only the source files to avoid overwriting node_modules with host versions
+COPY torlink/src ./src
+COPY torlink/tsconfig.json ./
+COPY torlink/tsup.config.ts ./
+COPY torlink/scripts ./scripts
 RUN npm run build
 
-# Expose the port used by ttyd
-EXPOSE 7681
+# --- Phase 2: Build Web UI ---
+WORKDIR /app/web
+# Copy web package files
+COPY web/package*.json ./
+# Install dependencies
+RUN npm install
+# Copy web source code
+COPY web/ .
+# Build the frontend
+RUN npm run build
 
-# Run ttyd to serve the torlink CLI
-# -W allows write access (input)
-# -p specifies the port
-CMD ["ttyd", "-W", "-p", "7681", "node", "dist/cli.cjs"]
+# --- Phase 3: Setup Server ---
+WORKDIR /app/server
+# Copy server package files
+COPY server/package*.json ./
+# Install dependencies (includes node-pty which uses the build tools installed above)
+RUN npm install
+# Copy server source code
+COPY server/ .
+
+# Default environment variables
+ENV PORT=3000
+ENV DOWNLOAD_DIR=/app/downloads
+
+# Expose the port used by the controller server
+EXPOSE 3000
+
+# Create the download directory
+RUN mkdir -p $DOWNLOAD_DIR
+
+# Run the controller server
+# Using shell form to allow environment variable expansion
+CMD npx tsx index.js
 ```
 
 ### Step 2: Create the `docker-compose.yml`
-Create a `docker-compose.yml` file:
+Create a `docker-compose.yml` file. This configuration uses environment variables for the port and download directory, allowing for easy customization.
+
 ```yaml
+version: '3.8'
+
 services:
   torlink-web:
     build: .
+    image: torlink-web
     ports:
-      - "7681:7681"
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      - PORT=${PORT:-3000}
+      - DOWNLOAD_DIR=${DOWNLOAD_DIR:-/app/downloads}
+    volumes:
+      - ${DOWNLOAD_DIR:-/app/downloads}:/app/downloads
     restart: always
 ```
 

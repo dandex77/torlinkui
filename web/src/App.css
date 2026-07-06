@@ -61,6 +61,7 @@
   font-size: 16px;
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .app-nav button.active {
@@ -157,6 +158,7 @@
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
+  font-size: 16px;
 }
 
 .search-form button {
@@ -185,143 +187,4 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.item-card {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: var(--shadow);
-}
-
-.item-info {
-  flex: 1;
-}
-
-.item-name {
-  font-weight: 600;
-  font-size: 18px;
-  margin-bottom: 4px;
-}
-
-.item-details, .item-meta {
-  font-size: 14px;
-  color: var(--text);
-}
-
-.item-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 14px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-success {
-  background: #22c55e;
-  color: white;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: white;
-}
-
-.btn-danger-sm {
-  padding: 4px 8px;
-  font-size: 12px;
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  padding: 6px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background: var(--border);
-  border-radius: 4px;
-  margin: 8px 0;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent);
-}
-
-.error {
-  color: #ef4444;
-  text-align: center;
-  padding: 20px;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: var(--text);
-}
-
-.dim {
-  opacity: 0.6;
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  font-size: 20px;
-}
-
-.loading-small {
-  text-align: center;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.setting-item {
-  margin-bottom: 20px;
-}
-
-.setting-item label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-
-.setting-item input, .setting-item textarea {
-  width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-}
-
-.setting-item textarea {
-  height: 100px;
-}
-
-.item-meta.error {
-  color: #ef4444;
 }
