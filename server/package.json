@@ -1,0 +1,15 @@
+{
+  "name": "torlink-controller",
+  "version": "1.0.0",
+  "description": "Controller for torlink CLI to enable Web UI",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-pty": "^1.0.0",
+    "ws": "^8.14.2"
+  }
+}
