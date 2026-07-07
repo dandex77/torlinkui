@@ -15,6 +15,8 @@ WORKDIR /app/torlink
 COPY torlink/package*.json ./
 RUN npm install
 COPY torlink/ .
+# Copy the extra scripts and patch script from the root to the torlink directory in the container
+COPY patch-stdin.cjs /app/torlink/
 RUN npm run build
 
 # Build Web UI
@@ -44,14 +46,10 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Copy torlink artifacts
-# We copy the package files and dist, then install production dependencies in the runner stage
-# This ensures native modules are compiled for the correct environment.
 WORKDIR /app/torlink
 COPY --from=builder /app/torlink/package*.json ./
 COPY --from=builder /app/torlink/dist ./dist
 COPY --from=builder /app/torlink/patch-stdin.cjs ./
-# Copy the PTY wrapper to the runner stage
-COPY --from=builder /app/torlink/run-tui-pty.js ./
 RUN npm install --omit=dev
 
 # Copy web artifacts
