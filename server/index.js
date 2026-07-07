@@ -66,18 +66,27 @@ function startPty() {
   console.log(`[PTY] CWD: ${ptyConfig.torlinkDir}`);
   console.log(`[PTY] Executing command: ${ptyConfig.command}`);
 
-  ptyProcess = pty.spawn('bash', ['-c', ptyConfig.command], {
-    name: 'torlink-cli',
-    cols: 80,
-    rows: 24,
-    cwd: ptyConfig.torlinkDir,
-    env: { 
-      ...process.env, 
-      TERM: 'xterm-256color'
-    }
-  });
+   ptyProcess = pty.spawn('bash', ['-c', ptyConfig.command], {
+     name: 'torlink-cli',
+     cols: 80,
+     rows: 24,
+     cwd: ptyConfig.torlinkDir,
+     env: { 
+       ...process.env, 
+       TERM: 'xterm-256color'
+     }
+   });
 
-  ptyProcess.on('exit', (code, signal) => {
+   ptyProcess.on('data', (data) => {
+     // Broadcast PTY output to all connected clients
+     for (const client of clients) {
+       if (client.readyState === 1) {
+         client.send(JSON.stringify({ type: 'data', data }));
+       }
+     }
+   });
+
+   ptyProcess.on('exit', (code, signal) => {
     console.log(`[PTY] Process exited. Code: ${code}, Signal: ${signal}`);
     ptyProcess = null;
     // Automatically restart PTY after a short delay to allow for recovery
@@ -97,15 +106,6 @@ function startPty() {
 
 // Start PTY process
 startPty();
-
-ptyProcess.on('data', (data) => {
-  // Broadcast PTY output to all connected clients
-  for (const client of clients) {
-    if (client.readyState === 1) {
-      client.send(JSON.stringify({ type: 'data', data }));
-    }
-  }
-});
 
 wss.on('connection', (ws) => {
   clients.add(ws);
