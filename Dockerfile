@@ -1,5 +1,5 @@
 # --- Stage 1: Builder ---
-FROM node:22 AS builder
+FROM node:26-slim AS builder
 
 # Install build dependencies for native modules (like node-pty)
 RUN apt-get update && apt-get install -y \
@@ -36,7 +36,7 @@ COPY server/ .
 RUN npx esbuild index.js --bundle --platform=node --format=esm --outfile=dist/index.js --minify --packages=external
 
 # --- Stage 2: Runner ---
-FROM node:22
+FROM node:26-slim
 
 # Set environment variables
 ENV PORT=3000
@@ -45,7 +45,18 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
+# Install runtime dependencies for native modules (like node-pty)
+# We include build-essential, ncurses libraries, and ca-certificates to ensure the terminal and network requests work correctly.
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
+    libncurses6 \
+    libtinfo6 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy torlink artifacts
+# We copy the pre-compiled production node_modules and dist from the builder stage
 WORKDIR /app/torlink
 COPY --from=builder /app/torlink/package*.json ./
 COPY --from=builder /app/torlink/dist ./dist

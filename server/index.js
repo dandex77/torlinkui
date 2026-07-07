@@ -49,40 +49,54 @@ async function initState() {
 const wss = new WebSocketServer({ noServer: true });
 const clients = new Set();
 
+// Configuration for PTY
+const ptyConfig = {
+  ptyPath: path.resolve(__dirname, '..', '..', 'torlink', 'dist', 'cli.cjs'),
+  torlinkDir: path.resolve(__dirname, '..', '..', 'torlink'),
+  patchScript: path.resolve(path.resolve(__dirname, '..', '..', 'torlink'), 'patch-stdin.cjs'),
+  command: '',
+};
+ptyConfig.command = `node -r ${ptyConfig.patchScript} ${ptyConfig.ptyPath}`;
+
+function startPty() {
+  if (ptyProcess) return;
+
+  console.log(`[PTY] Starting PTY with patch-stdin: ${ptyConfig.patchScript}`);
+  console.log(`[PTY] Target TUI path: ${ptyConfig.ptyPath}`);
+  console.log(`[PTY] CWD: ${ptyConfig.torlinkDir}`);
+  console.log(`[PTY] Executing command: ${ptyConfig.command}`);
+
+  ptyProcess = pty.spawn('bash', ['-c', ptyConfig.command], {
+    name: 'torlink-cli',
+    cols: 80,
+    rows: 24,
+    cwd: ptyConfig.torlinkDir,
+    env: { 
+      ...process.env, 
+      TERM: 'xterm-256color'
+    }
+  });
+
+  ptyProcess.on('exit', (code, signal) => {
+    console.log(`[PTY] Process exited. Code: ${code}, Signal: ${signal}`);
+    ptyProcess = null;
+    // Automatically restart PTY after a short delay to allow for recovery
+    setTimeout(startPty, 1000);
+  });
+
+  ptyProcess.on('error', (err) => {
+    if (err.code === 'EIO') {
+      // EIO is expected when the PTY process exits
+      ptyProcess = null;
+      return;
+    }
+    console.error('[PTY] Process error:', err);
+    ptyProcess = null;
+  });
+}
+
 // Start PTY process
-const ptyPath = path.resolve(__dirname, '..', '..', 'torlink', 'dist', 'cli.cjs');
-const torlinkDir = path.resolve(__dirname, '..', '..', 'torlink');
-const patchScript = path.resolve(torlinkDir, 'patch-stdin.cjs');
-
-console.log(`[PTY] Starting PTY with patch-stdin: ${patchScript}`);
-console.log(`[PTY] Target TUI path: ${ptyPath}`);
-console.log(`[PTY] CWD: ${torlinkDir}`);
-
-// We use bash -c to wrap the node command, ensuring the patch is applied 
-// and the target script is executed in a more robust shell environment.
-const command = `node -r ${patchScript} ${ptyPath}`;
-console.log(`[PTY] Executing command: ${command}`);
-
-ptyProcess = pty.spawn('bash', ['-c', command], {
-  name: 'torlink-cli',
-  cols: 80,
-  rows: 24,
-  cwd: torlinkDir,
-  env: { 
-    ...process.env, 
-    TERM: 'xterm-256color'
-  }
-});
-
-ptyProcess.on('exit', (code, signal) => {
-  console.log(`[PTY] Process exited. Code: ${code}, Signal: ${signal}`);
-  ptyProcess = null;
-});
-
-ptyProcess.on('error', (err) => {
-  console.error('[PTY] Process error:', err);
-  ptyProcess = null;
-});
+startPty();
 
 ptyProcess.on('data', (data) => {
   // Broadcast PTY output to all connected clients
