@@ -33,11 +33,8 @@ COPY server/ .
 # We use --packages=external to avoid bundling node_modules, which prevents "dynamic require" errors in ESM.
 RUN npx esbuild index.js --bundle --platform=node --format=esm --outfile=dist/index.js --minify --packages=external
 
-# Prune dev dependencies (but keep native modules like node-pty)
-RUN npm prune --production
-
 # --- Stage 2: Runner ---
-FROM node:22-slim
+FROM node:22
 
 # Set environment variables
 ENV PORT=3000
@@ -46,22 +43,34 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-# Copy torlink artifacts (needed for the CLI)
-COPY --from=builder /app/torlink/dist ./torlink/dist
+# Copy torlink artifacts
+# We copy the package files and dist, then install production dependencies in the runner stage
+# This ensures native modules are compiled for the correct environment.
+WORKDIR /app/torlink
+COPY --from=builder /app/torlink/package*.json ./
+COPY --from=builder /app/torlink/dist ./dist
+COPY --from=builder /app/torlink/patch-stdin.cjs ./
+# Copy the PTY wrapper to the runner stage
+COPY --from=builder /app/torlink/run-tui-pty.js ./
+RUN npm install --omit=dev
 
 # Copy web artifacts
-COPY --from=builder /app/web/dist ./web/dist
+WORKDIR /app/web
+COPY --from=builder /app/web/dist ./dist
 
-# Copy server artifacts (the bundled index.js and pruned node_modules)
-COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/node_modules ./server/node_modules
+# Copy server artifacts
+WORKDIR /app/server
+COPY --from=builder /app/server/package*.json ./
+COPY --from=builder /app/server/dist ./dist
+RUN npm install --omit=dev
 
 # Create the download directory
+WORKDIR /app
 RUN mkdir -p $DOWNLOAD_DIR
 
 # Expose the port
 EXPOSE 3000
 
-# Run the bundled controller server
+# Run the controller server
 WORKDIR /app/server
 CMD ["node", "dist/index.js"]

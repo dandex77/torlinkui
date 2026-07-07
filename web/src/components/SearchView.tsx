@@ -93,7 +93,13 @@ const SearchView: React.FC<SearchViewProps> = ({
                   <div className="item-details-wrapper">
                     <span className="item-source" style={{ color: sourceInfo.color }}>{item.source}</span>
                     <span className="item-sep">•</span>
-                    <span className="item-peers">{item.seeders}</span>
+                    <span className="item-peers">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '4px' }}>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                      {item.seeders}
+                    </span>
                     <span className="item-sep">•</span>
                     <span className="item-size">{item.sizeBytes ? (item.sizeBytes / 1024 / 1024 / 1024).toFixed(2) + ' GB' : '--'}</span>
                   </div>

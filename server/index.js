@@ -1,5 +1,6 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
+
 import path from 'path';
 import pty from 'node-pty';
 import { fileURLToPath } from 'url';
@@ -49,18 +50,41 @@ const wss = new WebSocketServer({ noServer: true });
 const clients = new Set();
 
 // Start PTY process
-const ptyPath = path.resolve(__dirname, '..', 'torlink', 'dist', 'cli.cjs');
-const torlinkDir = path.resolve(__dirname, '..', 'torlink');
+const ptyPath = path.resolve(__dirname, '..', '..', 'torlink', 'dist', 'cli.cjs');
+const torlinkDir = path.resolve(__dirname, '..', '..', 'torlink');
+const patchScript = path.resolve(torlinkDir, 'patch-stdin.cjs');
 
-ptyProcess = pty.spawn('node', [ptyPath], {
+console.log(`[PTY] Starting PTY with patch-stdin: ${patchScript}`);
+console.log(`[PTY] Target TUI path: ${ptyPath}`);
+console.log(`[PTY] CWD: ${torlinkDir}`);
+
+// We use bash -c to wrap the node command, ensuring the patch is applied 
+// and the target script is executed in a more robust shell environment.
+const command = `node -r ${patchScript} ${ptyPath}`;
+console.log(`[PTY] Executing command: ${command}`);
+
+ptyProcess = pty.spawn('bash', ['-c', command], {
   name: 'torlink-cli',
   cols: 80,
   rows: 24,
   cwd: torlinkDir,
-  env: { ...process.env, TERM: 'xterm-256color' }
+  env: { 
+    ...process.env, 
+    TERM: 'xterm-256color'
+  }
 });
 
-ptyProcess.onData((data) => {
+ptyProcess.on('exit', (code, signal) => {
+  console.log(`[PTY] Process exited. Code: ${code}, Signal: ${signal}`);
+  ptyProcess = null;
+});
+
+ptyProcess.on('error', (err) => {
+  console.error('[PTY] Process error:', err);
+  ptyProcess = null;
+});
+
+ptyProcess.on('data', (data) => {
   // Broadcast PTY output to all connected clients
   for (const client of clients) {
     if (client.readyState === 1) {
@@ -75,19 +99,23 @@ wss.on('connection', (ws) => {
   ws.on('close', () => clients.delete(ws));
   
   ws.on('message', async (data) => {
-    try {
-      // Try parsing as JSON first
-      const dataString = data.toString();
-      let message;
-      
       try {
-        message = JSON.parse(dataString);
-      } catch (e) {
-        // If parsing fails, it's likely raw terminal data from XTerm
-        message = { type: 'raw', data: dataString };
-      }
-      
-      if (message.type === 'search') {
+        const dataString = data.toString();
+        let message;
+        
+        try {
+          message = JSON.parse(dataString);
+        } catch (e) {
+          // If parsing fails, it's likely raw terminal data
+          message = { type: 'raw', data: dataString };
+        }
+
+        // If it's a valid JSON but doesn't have a type, treat it as raw data
+        if (typeof message === 'object' && message !== null && !message.type) {
+          message = { type: 'raw', data: dataString };
+        }
+        
+        if (message && message.type === 'search') {
         const { query, category } = message;
         if (!query) return;
 
@@ -127,6 +155,7 @@ wss.on('connection', (ws) => {
         }
       } else if (message.type === 'raw') {
         if (ptyProcess) {
+          console.log('Writing raw data to PTY:', message.data);
           ptyProcess.write(message.data);
         }
       }
@@ -283,7 +312,7 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
 
-// Graceful shutdown
+// Gracewise shutdown
 process.on('SIGINT', () => {
   console.log('Shutting down...');
   if (queue) {

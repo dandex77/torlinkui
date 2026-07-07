@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface TerminalProps {
   url: string;
@@ -10,6 +11,27 @@ interface TerminalProps {
 const Terminal: React.FC<TerminalProps> = ({ url }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+
+  // Use the robust WebSocket hook for automatic reconnection
+  const { sendMessage } = useWebSocket({
+    url,
+    onMessage: (event) => {
+      if (!xtermRef.current) return;
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'data' || msg.type === 'raw') {
+          xtermRef.current.write(msg.data);
+        }
+      } catch (e) {
+        // If it's not JSON, it's raw terminal data
+        xtermRef.current.write(event.data.toString());
+      }
+    },
+    onClose: () => {
+      console.log('WebSocket disconnected');
+      xtermRef.current?.write('\r\n\x1b[31mConnection lost. Attempting to reconnect...\x1b[0m\r\n');
+    },
+  });
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -29,53 +51,21 @@ const Terminal: React.FC<TerminalProps> = ({ url }) => {
     term.open(terminalRef.current);
     fitAddon.fit();
 
-    // Connect to WebSocket
-    const socket = new WebSocket(url);
-
-    socket.onopen = () => {
-      console.log('WebSocket connected');
-    };
-
-    socket.onmessage = (event) => {
-      console.log('Received message:', event.data);
-      try {
-        // If it's a JSON message (like 'update', 'search_start', etc.)
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'data') {
-          term.write(msg.data);
-        } else if (msg.type === 'raw') {
-          // Handle the 'raw' type we added to server/index.js
-          term.write(msg.data);
-        }
-      } catch (e) {
-        // If it's not JSON, it's raw terminal data
-        term.write(event.data.toString());
-      }
-    };
-
-    socket.onclose = () => {
-      console.log('WebSocket disconnected');
-      term.write('\r\n\x1b[31mConnection closed.\x1b[0m\r\n');
-    };
-
     // Handle terminal input
     term.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        // Send raw data as per server implementation fallback
-        socket.send(data);
+      if (data) {
+        sendMessage(data);
       }
     });
 
     // Handle resize
     const handleResize = () => {
       fitAddon.fit();
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: 'resize',
-          cols: term.cols,
-          rows: term.rows
-        }));
-      }
+      sendMessage({
+        type: 'resize',
+        cols: term.cols,
+        rows: term.rows
+      });
     };
 
     window.addEventListener('resize', handleResize);
@@ -85,10 +75,9 @@ const Terminal: React.FC<TerminalProps> = ({ url }) => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      socket.close();
       term.dispose();
     };
-  }, [url]);
+  }, [url, sendMessage]);
 
   return (
     <div 
