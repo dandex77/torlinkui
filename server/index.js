@@ -20,7 +20,7 @@ app.use(express.json());
 const port = process.env.PORT || 3000;
 
 // Serve static files from the Vite build directory
-const distPath = path.resolve(__dirname, '../web/dist');
+const distPath = path.resolve(__dirname, '../../web/dist');
 app.use(express.static(distPath));
 
 // Global State

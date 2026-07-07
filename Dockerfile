@@ -1,4 +1,5 @@
-FROM node:22-slim
+# --- Stage 1: Builder ---
+FROM node:22 AS builder
 
 # Install build dependencies for native modules (like node-pty)
 RUN apt-get update && apt-get install -y \
@@ -9,49 +10,58 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# --- Phase 1: Build torlink ---
-# Copy torlink package files
-COPY torlink/package*.json ./torlink/
+# Build torlink
 WORKDIR /app/torlink
-# Install dependencies and build
+COPY torlink/package*.json ./
 RUN npm install
-# Copy only the source files to avoid overwriting node_modules with host versions
-COPY torlink/src ./src
-COPY torlink/tsconfig.json ./
-COPY torlink/tsup.config.ts ./
-COPY torlink/scripts ./scripts
+COPY torlink/ .
 RUN npm run build
 
-# --- Phase 2: Build Web UI ---
+# Build Web UI
 WORKDIR /app/web
-# Copy web package files
 COPY web/package*.json ./
-# Install dependencies
 RUN npm install
-# Copy web source code
 COPY web/ .
-# Build the frontend
 RUN npm run build
 
-# --- Phase 3: Setup Server ---
+# Build Server
 WORKDIR /app/server
-# Copy server package files
 COPY server/package*.json ./
-# Install dependencies (includes node-pty which uses the build tools installed above)
 RUN npm install
-# Copy server source code
 COPY server/ .
+# Bundle the server using esbuild as ESM to support top-level await and import.meta
+# We use --packages=external to avoid bundling node_modules, which prevents "dynamic require" errors in ESM.
+RUN npx esbuild index.js --bundle --platform=node --format=esm --outfile=dist/index.js --minify --packages=external
 
-# Default environment variables
+# Prune dev dependencies (but keep native modules like node-pty)
+RUN npm prune --production
+
+# --- Stage 2: Runner ---
+FROM node:22-slim
+
+# Set environment variables
 ENV PORT=3000
 ENV DOWNLOAD_DIR=/app/downloads
+ENV NODE_ENV=production
 
-# Expose the port used by the controller server
-EXPOSE 3000
+WORKDIR /app
+
+# Copy torlink artifacts (needed for the CLI)
+COPY --from=builder /app/torlink/dist ./torlink/dist
+
+# Copy web artifacts
+COPY --from=builder /app/web/dist ./web/dist
+
+# Copy server artifacts (the bundled index.js and pruned node_modules)
+COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/node_modules ./server/node_modules
 
 # Create the download directory
 RUN mkdir -p $DOWNLOAD_DIR
 
-# Run the controller server
-# Using shell form to allow environment variable expansion
-CMD npx tsx index.js
+# Expose the port
+EXPOSE 3000
+
+# Run the bundled controller server
+WORKDIR /app/server
+CMD ["node", "dist/index.js"]
