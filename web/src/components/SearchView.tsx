@@ -106,7 +106,7 @@ const SearchView: React.FC<SearchViewProps> = ({
 
                   <div className="item-action-container">
                     <button 
-                      onClick={() => handleDownload(item)} 
+                      onClick={() => handleDownload({ ...item, id: item.infoHash })} 
                       className="btn-sm btn-success"
                     >
                       Get

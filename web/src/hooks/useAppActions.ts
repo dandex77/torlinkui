@@ -90,7 +90,13 @@ export const useAppActions = ({
       const res = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: item.name, magnet: item.magnet || item.torrentLink }),
+        body: JSON.stringify({ 
+          id: item.id, 
+          name: item.name, 
+          magnet: item.magnet || item.torrentLink,
+          source: item.source,
+          sizeBytes: item.sizeBytes
+        }),
       });
       if (res.ok) {
         setQuery('');
