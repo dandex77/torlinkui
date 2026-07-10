@@ -156,10 +156,10 @@ wss.on('connection', (ws) => {
         // We'll send a notification that search has started
         ws.send(JSON.stringify({ type: 'search_start', searchId }));
 
-        // Filter sources based on the selected category
-        const sourcesToSearch = category === 'all' 
-          ? SOURCES 
-          : SOURCES.filter(s => s.group?.toLowerCase() === category.toLowerCase());
+         // Filter sources based on the selected category
+         const sourcesToSearch = category === 'all' 
+           ? SOURCES 
+           : SOURCES.filter(s => s.groups?.some(g => g.toLowerCase() === category.toLowerCase()));
 
         // Run searches concurrently and push results as they come
         const searchPromises = sourcesToSearch.map(async (source) => {
