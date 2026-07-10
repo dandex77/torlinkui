@@ -34,6 +34,39 @@ function App() {
     const msg = JSON.parse(event.data);
     if (msg.type === 'update') {
       setState(prev => prev ? { ...prev, ...msg.data } : msg.data);
+    } else if (msg.type === 'item_update') {
+      setState(prev => {
+        if (!prev) return null;
+        const newState = { ...prev };
+        
+        if (msg.data.queue) {
+          const newQueue = [...newState.queue];
+          msg.data.queue.forEach((updatedItem: any) => {
+            const idx = newQueue.findIndex(item => item.id === updatedItem.id);
+            if (idx !== -1) {
+              newQueue[idx] = { ...newQueue[idx], ...updatedItem };
+            } else {
+              newQueue.push(updatedItem);
+            }
+          });
+          newState.queue = newQueue;
+        }
+        
+        if (msg.data.seeds) {
+          const newSeeds = [...newState.seeds];
+          msg.data.seeds.forEach((updatedSeed: any) => {
+            const idx = newSeeds.findIndex(seed => seed.id === updatedSeed.id);
+            if (idx !== -1) {
+              newSeeds[idx] = { ...newSeeds[idx], ...updatedSeed };
+            } else {
+              newSeeds.push(updatedSeed);
+            }
+          });
+          newState.seeds = newSeeds;
+        }
+        
+        return newState;
+      });
     } else if (msg.type === 'search_start') {
       setIsSearching(true);
       setSearchResults([]);

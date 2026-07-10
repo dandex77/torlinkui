@@ -39,6 +39,7 @@ const Terminal: React.FC<TerminalProps> = ({ url }) => {
     // Initialize terminal
     const term = new XTerm({
       cursorBlink: true,
+      scrollback: 1000,
       theme: {
         background: '#1e1e1e',
       },

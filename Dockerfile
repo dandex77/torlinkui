@@ -13,6 +13,7 @@ WORKDIR /app
 # 1. Build torlink (CLI)
 WORKDIR /app/torlink
 COPY torlink/package*.json ./
+COPY torlink/scripts ./scripts
 RUN npm install
 COPY torlink/ .
 COPY patch-stdin.cjs /app/torlink/
@@ -69,6 +70,7 @@ COPY --from=builder /app/web/dist ./dist
 WORKDIR /app/torlink
 COPY --from=builder /app/torlink/package*.json ./
 COPY --from=builder /app/torlink/dist ./dist
+COPY --from=builder /app/torlink/scripts ./scripts
 COPY --from=builder /app/torlink/patch-stdin.cjs ./
 RUN apt-get update && apt-get install -y python3 make g++ && \
     npm install --omit=dev && \

@@ -7,6 +7,8 @@ services:
     environment:
       - PORT=${PORT:-3000}
       - DOWNLOAD_DIR=${DOWNLOAD_DIR:-~/torlink}
+      - TORLINK_STATE_DIR=${STATE_DIR:-./state}
     volumes:
       - ${DOWNLOAD_DIR:-~/torlink}:/root/Downloads/torlink
+      - ${STATE_DIR:-~/torlink/.state}:/app/state
     restart: always

@@ -6,7 +6,7 @@ import pty from 'node-pty';
 import { fileURLToPath } from 'url';
 import { DownloadQueue } from '../torlink/src/download/queue.js';
 import { loadConfig, saveConfig } from '../torlink/src/config/config.js';
-import { loadQueue, loadSeeds } from '../torlink/src/download/persist.js';
+import { loadQueue, loadSeeds, torrentMetaExists, torrentMetaPath } from '../torlink/src/download/persist.js';
 import { loadHistory } from '../torlink/src/download/history.js';
 import { reconcileQueue } from '../torlink/src/download/reconcile.js';
 import { normalizeDownloadDir } from '../torlink/src/config/folder.js';
@@ -38,8 +38,23 @@ async function initState() {
   if (config && config.trackers) {
     q.setTrackers(config.trackers);
   }
-  const reconciled = reconcileQueue(await loadQueue());
-  q.restore(reconciled);
+   const reconciled = reconcileQueue(await loadQueue());
+   console.log(`[Init] Reconciled ${reconciled.length} items from queue.`);
+   
+   // Update item magnet/source to use metadata if available for easier resumption
+   for (const item of reconciled) {
+     const metaExists = torrentMetaExists(item.id);
+     if (metaExists) {
+       item.magnet = torrentMetaPath(item.id);
+     }
+   }
+
+   q.restore(reconciled);
+
+   // Log restoration details
+   for (const item of reconciled) {
+     console.log(`[Init] Restored item: ${item.name} (${item.id}) - Status: ${item.status}`);
+   }
   history = await loadHistory();
   seeds = await loadSeeds();
   queue = q;
@@ -77,14 +92,16 @@ function startPty() {
      }
    });
 
-   ptyProcess.on('data', (data) => {
-     // Broadcast PTY output to all connected clients
-     for (const client of clients) {
-       if (client.readyState === 1) {
-         client.send(JSON.stringify({ type: 'data', data }));
-       }
-     }
-   });
+    ptyProcess.on('data', (data) => {
+      // Broadcast PTY output to all connected clients
+      // Convert Buffer to string to avoid massive JSON expansion
+      const dataString = data.toString();
+      for (const client of clients) {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify({ type: 'data', data: dataString }));
+        }
+      }
+    });
 
    ptyProcess.on('exit', (code, signal) => {
     console.log(`[PTY] Process exited. Code: ${code}, Signal: ${signal}`);
@@ -180,35 +197,103 @@ wss.on('connection', (ws) => {
 });
 
 // Helper to broadcast state updates
+let lastBroadcast = 0;
+const BROADCAST_THROTTLE_MS = 500; // Throttle to avoid excessive updates
+let lastState = { queue: new Map(), seeds: new Map(), history: [] };
+
 function broadcastUpdate() {
   if (!queue || !config) return;
-  const payload = JSON.stringify({
-    type: 'update',
-    data: {
-      config,
-      queue: queue.getItems(),
-      history,
-      seeds: queue.getSeeds(),
+  const now = Date.now();
+  if (now - lastBroadcast < BROADCAST_THROTTLE_MS) return;
+  lastBroadcast = now;
+
+  const currentQueue = queue.getItems();
+  const currentSeeds = queue.getSeeds();
+  const currentHistory = history;
+
+  // 1. Check for item updates in the queue
+  const queueUpdates = [];
+  for (const item of currentQueue) {
+    const prev = lastState.queue.get(item.id);
+    if (!prev || 
+        prev.progress !== item.progress || 
+        prev.speed !== item.speed || 
+        prev.peers !== item.peers || 
+        prev.status !== item.status ||
+        prev.downloadedBytes !== item.downloadedBytes ||
+        prev.eta !== item.eta) {
+      queueUpdates.push({ id: item.id, ...item });
     }
-  });
-  for (const client of clients) {
-    if (client.readyState === 1) client.send(payload);
   }
+
+  // 2. Check for item updates in seeds
+  const seedUpdates = [];
+  for (const seed of currentSeeds) {
+    const prev = lastState.seeds.get(seed.id);
+    if (!prev || 
+        prev.uploadSpeed !== seed.uploadSpeed || 
+        prev.uploaded !== seed.uploaded || 
+        prev.peers !== seed.peers || 
+        prev.status !== seed.status) {
+      seedUpdates.push({ id: seed.id, ...seed });
+    }
+  }
+
+  // Check for structural changes
+  const queueLenChanged = currentQueue.length !== (lastState.queue.size);
+  const seedsLenChanged = currentSeeds.length !== (lastState.seeds.size);
+  
+  // Improved history comparison: check length and last item content
+  let historyChanged = false;
+  if (currentHistory.length !== lastState.history.length) {
+    historyChanged = true;
+  } else if (currentHistory.length > 0 && 
+             (currentHistory[currentHistory.length - 1].id !== lastState.history[lastState.history.length - 1].id ||
+              currentHistory[currentHistory.length - 1].status !== lastState.history[lastState.history.length - 1].status)) {
+    historyChanged = true;
+  }
+
+  if (queueLenChanged || seedsLenChanged || historyChanged) {
+    const payload = JSON.stringify({
+      type: 'update',
+      data: { config, queue: currentQueue, history: currentHistory, seeds: currentSeeds }
+    });
+    for (const client of clients) {
+      if (client.readyState === 1) client.send(payload);
+    }
+  } else if (queueUpdates.length > 0 || seedUpdates.length > 0) {
+    // Send granular updates in a single message if possible
+    const deltaData = {};
+    if (queueUpdates.length > 0) deltaData.queue = queueUpdates;
+    if (seedUpdates.length > 0) deltaData.seeds = seedUpdates;
+    
+    const payload = JSON.stringify({ type: 'item_update', data: deltaData });
+    for (const client of clients) {
+      if (client.readyState === 1) client.send(payload);
+    }
+  }
+
+  // Update local cache
+  // We must store clones of the items to ensure the comparison in the next broadcast
+  // compares the current values against the values from the previous broadcast,
+  // rather than comparing an object to itself.
+  lastState = {
+    queue: new Map(currentQueue.map(i => [i.id, JSON.parse(JSON.stringify(i))])),
+    seeds: new Map(currentSeeds.map(i => [i.id, JSON.parse(JSON.stringify(i))])),
+    history: JSON.parse(JSON.stringify(currentHistory))
+  };
 }
 
 // Initialize the queue event listener
 async function setupQueueListener() {
   if (queue) {
     queue.on('update', async () => {
-      // On update, we refresh our local history/seeds from the queue to keep them in sync
-      // since the queue is the source of truth.
-      history = await loadHistory(); // Simplest way to stay in sync for this exercise
+      history = await loadHistory();
       seeds = queue.getSeeds();
       broadcastUpdate();
     });
     queue.on('completed', (name) => {
         console.log(`Download completed: ${name}`);
-        // Note: history and seeds are updated by 'update' event
     });
   }
 }
@@ -326,8 +411,8 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
 
-// Gracewise shutdown
-process.on('SIGINT', () => {
+// Graceful shutdown
+function shutdown() {
   console.log('Shutting down...');
   if (queue) {
     queue.persistSync();
@@ -336,5 +421,9 @@ process.on('SIGINT', () => {
   if (ptyProcess) {
     ptyProcess.kill();
   }
-  process.exit();
-});
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGQUIT', shutdown);
