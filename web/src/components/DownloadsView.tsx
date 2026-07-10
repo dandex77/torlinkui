@@ -17,15 +17,34 @@ const DownloadsView: React.FC<DownloadsViewProps> = ({ items, handleControl }) =
   };
 
   const formatSpeed = (bytesPerSec?: number) => {
-    if (!bytesPerSec) return '0 MB/s';
-    return (bytesPerSec / 1024 / 1024).toFixed(2) + ' MB/s';
+    if (!bytesPerSec) return '0 B/s';
+    const kb = bytesPerSec / 1024;
+    const mb = kb / 1024;
+
+    if (mb >= 1) {
+      return `${mb.toFixed(2)} MB/s`;
+    }
+    return `${kb.toFixed(2)} KB/s`;
   };
 
   const formatEta = (seconds?: number) => {
     if (!seconds) return '';
-    const m = Math.floor(seconds / 60);
+    if (seconds <= 0) return '0s';
+
     const s = Math.floor(seconds % 60);
-    return `${m}m ${s}s`;
+    const m = Math.floor(seconds / 60) % 60;
+    const h = Math.floor(seconds / 3600) % 24;
+    const d = Math.floor(seconds / 86400) % 365;
+    const y = Math.floor(seconds / (86400 * 365));
+
+    const parts = [];
+    if (y > 0) parts.push(`${y}y`);
+    if (d > 0) parts.push(`${d}d`);
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+
+    return parts.join(' ');
   };
 
   const PeerIcon = () => (
