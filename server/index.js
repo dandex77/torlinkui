@@ -274,21 +274,31 @@ function broadcastUpdate() {
   }
 
   // Update local cache
-  // We must store clones of the items to ensure the comparison in the next broadcast
-  // compares the current values against the values from the previous broadcast,
-  // rather than comparing an object to itself.
+  // Instead of deep cloning everything, we update the lastState Map with the current values.
+  // We use object spreads to create new object references for the items, 
+  // allowing the comparison logic in the next tick to work correctly.
+  
+  const nextQueueMap = new Map();
+  for (const item of currentQueue) {
+    nextQueueMap.set(item.id, { ...item });
+  }
+  
+  const nextSeedsMap = new Map();
+  for (const seed of currentSeeds) {
+    nextSeedsMap.set(seed.id, { ...seed });
+  }
+
   lastState = {
-    queue: new Map(currentQueue.map(i => [i.id, JSON.parse(JSON.stringify(i))])),
-    seeds: new Map(currentSeeds.map(i => [i.id, JSON.parse(JSON.stringify(i))])),
-    history: JSON.parse(JSON.stringify(currentHistory))
+    queue: nextQueueMap,
+    seeds: nextSeedsMap,
+    history: [...currentHistory] // Shallow copy is enough as history items are unlikely to change in-place
   };
 }
 
 // Initialize the queue event listener
 async function setupQueueListener() {
   if (queue) {
-    queue.on('update', async () => {
-      history = await loadHistory();
+    queue.on('update', () => {
       seeds = queue.getSeeds();
       broadcastUpdate();
     });

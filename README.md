@@ -32,14 +32,14 @@ The fastest way to run Torlink UI is with the published image:
        container_name: torlinkui
        ports:
          - "3000:3000"
-    environment:
-      - PORT=3000
-      - DOWNLOAD_DIR=/root/Downloads/torlink
-      - STATE_DIR=./state
-    volumes:
-      - ./downloads:/root/Downloads/torlink
-      - ./state:/app/state
-    restart: unless-stopped
+       environment:
+         - PORT=3000
+         - DOWNLOAD_DIR=/root/Downloads/torlink
+         - TORLINK_STATE_DIR=/root/state
+       volumes:
+         - ./downloads:/root/Downloads/torlink
+         - ./state:/root/state
+       restart: unless-stopped
    ```
 
 2. Start the container:
@@ -85,6 +85,13 @@ docker run -d \
 | `PORT` | The port the web server runs on | `3000` |
 | `DOWNLOAD_DIR` | Download directory used inside the container (map it with a volume) | `/root/Downloads/torlink` |
 | `STATE_DIR` | Directory for persisting app state (config, queue, etc.) | `./state` |
+
+#### 📂 Persistent Data Locations
+When using `STATE_DIR` (defaulting to `./state`), the application organizes data into a subfolder structure. For containerized users, the `.torrent` metadata is stored in:
+
+*   **Inside Container**: `/app/server/state/data/torrents/`
+*   **On Host**: Depends on your volume mapping (e.g., if mapping `./state:/app/state`, it will be in `./state/data/torrents/`)
+
 
 ---
 
